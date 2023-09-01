@@ -1,5 +1,5 @@
 ifdef ORCA
-ORCA_ROOT ?= ../../orca
+ORCA_ROOT ?= ../../../riscv_cores/orca
 RISCV_TESTS_DIR ?= $(ORCA_ROOT)/software/riscv-tests
 RISCV_ENV_DIR   ?= $(RISCV_TESTS_DIR)/env
 
