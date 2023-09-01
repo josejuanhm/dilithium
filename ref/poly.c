@@ -6,6 +6,13 @@
 #include "rounding.h"
 #include "symmetric.h"
 
+#include "fpau_switches.h"
+
+#ifdef PROFILING_NTT_INTT
+#include "uart.h"
+void print_runtime2(uint32_t cycle_start, uint32_t cycle_end);
+#endif
+
 #ifdef DBENCH
 #include "test/cpucycles.h"
 extern const uint64_t timing_overhead;
@@ -64,10 +71,31 @@ void poly_caddq(poly *a) {
 **************************************************/
 void poly_add(poly *c, const poly *a, const poly *b)  {
   unsigned int i;
+
+#ifdef FPAU
+  register uint32_t coeff0 asm("s6");
+  register uint32_t coeff1 asm("s7");
+#endif
+
   DBENCH_START();
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < N; ++i){
+#ifdef FPAU
+    coeff0 = a->coeffs[i];
+    coeff1 = b->coeffs[i];
+    
+#ifndef STEEL
+    asm volatile("nop"); // ORCA
+    asm volatile("nop"); // ORCA
+    asm volatile("nop"); // ORCA
+#endif
+    asm volatile("fpau.dil.bf %0, %1, %2\n": : "r"(coeff0), "r"(coeff1),"r"(1): );  // use of bf to not overwrite "1" constant (output1 = coeff0 + coeff1*1)
+    
+    c->coeffs[i] = coeff0;
+#else // FPAU
     c->coeffs[i] = a->coeffs[i] + b->coeffs[i];
+#endif
+  }
 
   DBENCH_STOP(*tadd);
 }
@@ -85,10 +113,33 @@ void poly_add(poly *c, const poly *a, const poly *b)  {
 **************************************************/
 void poly_sub(poly *c, const poly *a, const poly *b) {
   unsigned int i;
+
+#ifdef FPAU
+  register uint32_t coeff0 asm("s6");
+  register uint32_t coeff1 asm("s7");
+#endif
+
   DBENCH_START();
 
-  for(i = 0; i < N; ++i)
+  for(i = 0; i < N; ++i){
+#ifdef FPAU
+    coeff0 = a->coeffs[i];
+    coeff1 = b->coeffs[i];
+    
+#ifndef STEEL
+    asm volatile("nop"); // ORCA
+    asm volatile("nop"); // ORCA
+    asm volatile("nop"); // ORCA
+#endif
+    asm volatile("fpau.dil.bf %0, %1, %2\n": : "r"(coeff0), "r"(coeff1),"r"(1): );  // use of bf to not overwrite "1" constant (output2 = coeff0 - coeff1*1)
+
+    asm volatile("nop"); // ORCA and STEEL (2nd output written in next cycle)
+
+    c->coeffs[i] = coeff1;
+#else // FPAU
     c->coeffs[i] = a->coeffs[i] - b->coeffs[i];
+#endif
+  }
 
   DBENCH_STOP(*tadd);
 }
@@ -121,8 +172,22 @@ void poly_shiftl(poly *a) {
 **************************************************/
 void poly_ntt(poly *a) {
   DBENCH_START();
+  #ifdef PROFILING_NTT_INTT
+  register uint32_t cycle_start asm("s2");
+  register uint32_t cycle_end asm("s3");
+
+  uart_send_string("\n\rNTT:");
+
+  asm("csrrs s2, time, zero");
+  #endif
 
   ntt(a->coeffs);
+
+  #ifdef PROFILING_NTT_INTT
+  asm("csrrs s3, time, zero");
+
+  print_runtime2(cycle_start, cycle_end);
+  #endif
 
   DBENCH_STOP(*tmul);
 }
@@ -138,8 +203,22 @@ void poly_ntt(poly *a) {
 **************************************************/
 void poly_invntt_tomont(poly *a) {
   DBENCH_START();
+  #ifdef PROFILING_NTT_INTT
+  register uint32_t cycle_start asm("s2");
+  register uint32_t cycle_end asm("s3");
+
+  uart_send_string("\n\rInverse NTT:");
+
+  asm("csrrs s2, time, zero");
+  #endif
 
   invntt_tomont(a->coeffs);
+
+  #ifdef PROFILING_NTT_INTT
+  asm("csrrs s3, time, zero");
+
+  print_runtime2(cycle_start, cycle_end);
+  #endif
 
   DBENCH_STOP(*tmul);
 }
@@ -905,3 +984,28 @@ void polyw1_pack(uint8_t *r, const poly *a) {
 
   DBENCH_STOP(*tpack);
 }
+
+#ifdef PROFILING_NTT_INTT
+void print_runtime2(uint32_t cycle_start, uint32_t cycle_end)
+{
+  uint32_t clock_cycles = cycle_end - cycle_start;
+
+  itoa(pbuf, cycle_start, 10);
+  uart_send_string("\nStart cycle: ");
+  uart_send_string(str);
+  uart_send_string("\n");
+  //itoa(pbuf, cycle_starth, 10);
+  //uart_send_string(str);
+  itoa(pbuf, cycle_end, 10);
+  uart_send_string("\nEnd cycle: ");
+  uart_send_string(str);
+  uart_send_string("\n");
+  //itoa(pbuf, cycle_endh, 10);
+  //uart_send_string(str);
+
+  itoa(pbuf, clock_cycles, 10);
+  uart_send_string("\nTotal clock cycles: ");
+  uart_send_string(str);
+  uart_send_string("\n");
+}
+#endif

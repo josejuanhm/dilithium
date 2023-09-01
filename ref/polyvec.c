@@ -3,6 +3,12 @@
 #include "polyvec.h"
 #include "poly.h"
 
+#include "fpau_switches.h"
+
+#if defined(PROFILING_MAC)
+#include "uart.h"
+#endif
+
 /*************************************************
 * Name:        expand_mat
 *
@@ -25,8 +31,22 @@ void polyvec_matrix_expand(polyvecl mat[K], const uint8_t rho[SEEDBYTES]) {
 void polyvec_matrix_pointwise_montgomery(polyveck *t, const polyvecl mat[K], const polyvecl *v) {
   unsigned int i;
 
-  for(i = 0; i < K; ++i)
+#ifdef PROFILING_MAC
+  register uint32_t cycle_start asm("s4");
+  register uint32_t cycle_end asm("s3");
+#endif
+
+  for(i = 0; i < K; ++i){
+#ifdef PROFILING_MAC
+    uart_send_string("\n\rMAC l vector");
+    asm("csrrs s4, time, zero");
+#endif
     polyvecl_pointwise_acc_montgomery(&t->vec[i], &mat[i], v);
+#ifdef PROFILING_MAC
+    asm("csrrs s3, time, zero");
+    print_runtime(cycle_start, cycle_end);
+#endif
+  }
 }
 
 /**************************************************************/
@@ -94,10 +114,35 @@ void polyvecl_invntt_tomont(polyvecl *v) {
 }
 
 void polyvecl_pointwise_poly_montgomery(polyvecl *r, const poly *a, const polyvecl *v) {
+#ifdef FPAU
+  unsigned int i;
+  int32_t u_coeff, v_coeff;
+
+  for(i = 0; i < L; ++i)
+  {
+    for( unsigned int j = 0; j < N; ++j)
+    {
+      u_coeff = a->coeffs[j];
+      v_coeff = v->vec[i].coeffs[j];
+
+      // multiply coefficients
+#ifndef STEEL
+      asm volatile ("nop"); //ORCA
+      asm volatile ("nop"); //ORCA
+      asm volatile ("nop"); //ORCA
+#endif
+      asm volatile("fpau.dil.mac %0, %1, %2\n": : "r"(u_coeff), "r"(v_coeff),"r"(0): );
+
+      // store result
+      r->vec[i].coeffs[j] = u_coeff;
+    }
+  }
+#else
   unsigned int i;
 
   for(i = 0; i < L; ++i)
     poly_pointwise_montgomery(&r->vec[i], a, &v->vec[i]);
+#endif
 }
 
 /*************************************************
@@ -115,14 +160,42 @@ void polyvecl_pointwise_acc_montgomery(poly *w,
                                        const polyvecl *u,
                                        const polyvecl *v)
 {
-  unsigned int i;
+#ifdef FPAU
+  unsigned int i, j;
+  int32_t d, u_coeff, v_coeff;
+
+  for(i = 0; i < N; i++){
+    w->coeffs[i] = 0;
+  }
+
+  for(i = 0; i < L; ++i) {
+    for(j = 0; j < N; j++){
+      d = w->coeffs[j];
+      u_coeff = u->vec[i].coeffs[j];
+      v_coeff = v->vec[i].coeffs[j];
+
+      // Compute MAC operation
+#ifndef STEEL
+      asm volatile("nop"); //ORCA
+      asm volatile("nop"); //ORCA
+      asm volatile("nop"); //ORCA
+#endif
+      asm volatile("fpau.dil.mac %0, %1, %2\n": : "r"(u_coeff), "r"(v_coeff),"r"(d): );
+
+      // Store the result
+      w->coeffs[j] = u_coeff;
+    }
+  }
+#else
   poly t;
+  unsigned int i;
 
   poly_pointwise_montgomery(w, &u->vec[0], &v->vec[0]);
   for(i = 1; i < L; ++i) {
     poly_pointwise_montgomery(&t, &u->vec[i], &v->vec[i]);
     poly_add(w, w, &t);
   }
+#endif
 }
 
 /*************************************************
@@ -270,10 +343,35 @@ void polyveck_invntt_tomont(polyveck *v) {
 }
 
 void polyveck_pointwise_poly_montgomery(polyveck *r, const poly *a, const polyveck *v) {
+#ifdef FPAU
+  unsigned int i, j;
+  int32_t u_coeff, v_coeff;
+
+  for(i = 0; i < K; ++i)
+  {
+    for(j = 0; j < N; ++j)
+    {
+      u_coeff = a->coeffs[j];
+      v_coeff = v->vec[i].coeffs[j];
+
+      // multiply coefficients
+#ifndef STEEL
+      asm volatile("nop");  //ORCA
+      asm volatile("nop");  //ORCA
+      asm volatile ("nop"); //ORCA
+#endif
+      asm volatile("fpau.dil.mac %0, %1, %2\n": : "r"(u_coeff), "r"(v_coeff),"r"(0): ); // syntax with no outputs to avoid compiler optimization (no loading u_coeff)
+
+      // store result
+      r->vec[i].coeffs[j] = u_coeff;
+    }
+  }
+#else
   unsigned int i;
 
   for(i = 0; i < K; ++i)
     poly_pointwise_montgomery(&r->vec[i], a, &v->vec[i]);
+#endif
 }
 
 

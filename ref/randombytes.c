@@ -18,63 +18,76 @@
 #endif
 #endif
 
-#ifdef _WIN32
+// use definition from test_vectors.c for RISC-V core execution
 void randombytes(uint8_t *out, size_t outlen) {
-  HCRYPTPROV ctx;
-  size_t len;
+  unsigned int i;
+  uint8_t buf[8];
+  static uint64_t ctr = 0;
 
-  if(!CryptAcquireContext(&ctx, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
-    abort();
+  for(i = 0; i < 8; ++i)
+    buf[i] = ctr >> 8*i;
 
-  while(outlen > 0) {
-    len = (outlen > 1048576) ? 1048576 : outlen;
-    if(!CryptGenRandom(ctx, len, (BYTE *)out))
-      abort();
-
-    out += len;
-    outlen -= len;
-  }
-
-  if(!CryptReleaseContext(ctx, 0))
-    abort();
+  ctr++;
+  shake128(out, outlen, buf, 8);
 }
-#elif defined(__linux__) && defined(SYS_getrandom)
-void randombytes(uint8_t *out, size_t outlen) {
-  ssize_t ret;
 
-  while(outlen > 0) {
-    ret = syscall(SYS_getrandom, out, outlen, 0);
-    if(ret == -1 && errno == EINTR)
-      continue;
-    else if(ret == -1)
-      abort();
-
-    out += ret;
-    outlen -= ret;
-  }
-}
-#else
-void randombytes(uint8_t *out, size_t outlen) {
-  static int fd = -1;
-  ssize_t ret;
-
-  while(fd == -1) {
-    fd = open("/dev/urandom", O_RDONLY);
-    if(fd == -1 && errno == EINTR)
-      continue;
-    else if(fd == -1)
-      abort();
-  }
-
-  while(outlen > 0) {
-    ret = read(fd, out, outlen);
-    if(ret == -1 && errno == EINTR)
-      continue;
-    else if(ret == -1)
-      abort();
-
-    out += ret;
-    outlen -= ret;
-  }
-}
-#endif
+//#ifdef _WIN32
+//void randombytes(uint8_t *out, size_t outlen) {
+//  HCRYPTPROV ctx;
+//  size_t len;
+//
+//  if(!CryptAcquireContext(&ctx, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+//    abort();
+//
+//  while(outlen > 0) {
+//    len = (outlen > 1048576) ? 1048576 : outlen;
+//    if(!CryptGenRandom(ctx, len, (BYTE *)out))
+//      abort();
+//
+//    out += len;
+//    outlen -= len;
+//  }
+//
+//  if(!CryptReleaseContext(ctx, 0))
+//    abort();
+//}
+//#elif defined(__linux__) && defined(SYS_getrandom)
+//void randombytes(uint8_t *out, size_t outlen) {
+//  ssize_t ret;
+//
+//  while(outlen > 0) {
+//    ret = syscall(SYS_getrandom, out, outlen, 0);
+//    if(ret == -1 && errno == EINTR)
+//      continue;
+//    else if(ret == -1)
+//      abort();
+//
+//    out += ret;
+//    outlen -= ret;
+//  }
+//}
+//#else
+//void randombytes(uint8_t *out, size_t outlen) {
+//  static int fd = -1;
+//  ssize_t ret;
+//
+//  while(fd == -1) {
+//    fd = open("/dev/urandom", O_RDONLY);
+//    if(fd == -1 && errno == EINTR)
+//      continue;
+//    else if(fd == -1)
+//      abort();
+//  }
+//
+//  while(outlen > 0) {
+//    ret = read(fd, out, outlen);
+//    if(ret == -1 && errno == EINTR)
+//      continue;
+//    else if(ret == -1)
+//      abort();
+//
+//    out += ret;
+//    outlen -= ret;
+//  }
+//}
+//#endif

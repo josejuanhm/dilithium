@@ -8,6 +8,12 @@
 #include "symmetric.h"
 #include "fips202.h"
 
+#include "fpau_switches.h"
+
+#if defined(NTT_TESTING_HW) || defined(MAC_TESTING_HW) || defined(INTT_TESTING_HW) || defined(SIGNATURE_TESTING_HW) || defined(PROFILING_MAC) || defined(PROFILING_ADD_SUB)
+#include "uart.h"
+#endif
+
 /*************************************************
 * Name:        crypto_sign_keypair
 *
@@ -21,7 +27,11 @@
 * Returns 0 (success)
 **************************************************/
 int crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
+#if defined(HW_TESTING_SEEDINIT_TO_ZERO)
+  uint8_t seedbuf[2*SEEDBYTES + CRHBYTES] = {0};
+#else
   uint8_t seedbuf[2*SEEDBYTES + CRHBYTES];
+#endif
   uint8_t tr[SEEDBYTES];
   const uint8_t *rho, *rhoprime, *key;
   polyvecl mat[K];
@@ -36,18 +46,59 @@ int crypto_sign_keypair(uint8_t *pk, uint8_t *sk) {
   key = rhoprime + CRHBYTES;
 
   /* Expand matrix */
+#ifndef NTT_TESTING
   polyvec_matrix_expand(mat, rho);
+#endif
 
   /* Sample short vectors s1 and s2 */
   polyvecl_uniform_eta(&s1, rhoprime, 0);
+#ifndef NTT_TESTING
   polyveck_uniform_eta(&s2, rhoprime, L);
+#endif
 
   /* Matrix-vector multiplication */
   s1hat = s1;
   polyvecl_ntt(&s1hat);
+
+  #ifdef NTT_TESTING_HW
+  uint32_t* s1hat_ptr = (uint32_t*)&s1hat;
+  uart_send_string("\n\rs1_full\n");
+  for (uint16_t i = 0; i < 1024; i++)
+  {
+    itoa(pbuf, s1hat_ptr[i], 10);
+    uart_send_string("\r");
+    uart_send_string(str);
+  }
+  #endif
+
   polyvec_matrix_pointwise_montgomery(&t1, mat, &s1hat);
+
+#ifdef MAC_TESTING_HW
+  uint32_t* t1_ptr = (uint32_t*)&t1;
+  uart_send_string("\n\rt1_full\n");
+  for (uint16_t i = 0; i < N*K; i++)
+  {
+    itoa(pbuf, t1_ptr[i], 10);
+    uart_send_string("\r");
+    uart_send_string(str);
+  }
+#endif
+
+#ifndef FPAU
   polyveck_reduce(&t1);
+#endif
   polyveck_invntt_tomont(&t1);
+
+#ifdef INTT_TESTING_HW
+  //uint32_t* t1_ptr = (uint32_t*)&t1;
+  uart_send_string("\n\rt1_inv_full\n");
+  for (uint16_t i = 0; i < N*K; i++)
+  {
+    itoa(pbuf, t1_ptr[i], 10);
+    uart_send_string("\r");
+    uart_send_string(str);
+  }
+#endif
 
   /* Add error vector s2 */
   polyveck_add(&t1, &t1, &s2);
@@ -92,6 +143,11 @@ int crypto_sign_signature(uint8_t *sig,
   poly cp;
   keccak_state state;
 
+#if defined(PROFILING_MAC) || defined(PROFILING_ADD_SUB)
+  register uint32_t cycle_start asm("s2");
+  register uint32_t cycle_end asm("s3");
+#endif
+
   rho = seedbuf;
   tr = rho + SEEDBYTES;
   key = tr + SEEDBYTES;
@@ -126,7 +182,9 @@ rej:
   z = y;
   polyvecl_ntt(&z);
   polyvec_matrix_pointwise_montgomery(&w1, mat, &z);
+#ifndef FPAU
   polyveck_reduce(&w1);
+#endif
   polyveck_invntt_tomont(&w1);
 
   /* Decompose w and call the random oracle */
@@ -143,26 +201,83 @@ rej:
   poly_ntt(&cp);
 
   /* Compute z, reject if it reveals secret */
+#ifdef PROFILING_MAC
+  uart_send_string("\n\rPointwise mult l vector");
+  asm("csrrs s2, time, zero");
+#endif
   polyvecl_pointwise_poly_montgomery(&z, &cp, &s1);
+#ifdef PROFILING_MAC
+  asm("csrrs s3, time, zero");
+  print_runtime(cycle_start, cycle_end);
+#endif
+
   polyvecl_invntt_tomont(&z);
+
+#ifdef PROFILING_ADD_SUB
+  uart_send_string("\n\rADD polyvecl_add");
+  asm("csrrs s2, time, zero");
+#endif
   polyvecl_add(&z, &z, &y);
+#ifndef FPAU
   polyvecl_reduce(&z);
+#endif
+#ifdef PROFILING_ADD_SUB
+  asm("csrrs s3, time, zero");
+  print_runtime(cycle_start, cycle_end);
+#endif
+
   if(polyvecl_chknorm(&z, GAMMA1 - BETA))
     goto rej;
 
   /* Check that subtracting cs2 does not change high bits of w and low bits
    * do not reveal secret information */
+
+#ifdef PROFILING_MAC
+  uart_send_string("\n\rPointwise mult k vector");
+  asm("csrrs s2, time, zero");
+#endif
   polyveck_pointwise_poly_montgomery(&h, &cp, &s2);
+#ifdef PROFILING_MAC
+  asm("csrrs s3, time, zero");
+  print_runtime(cycle_start, cycle_end);
+#endif
+
   polyveck_invntt_tomont(&h);
+
+#ifdef PROFILING_ADD_SUB
+  uart_send_string("\n\rSUB polyveck_sub");
+  asm("csrrs s2, time, zero");
+#endif
   polyveck_sub(&w0, &w0, &h);
+#ifndef FPAU
   polyveck_reduce(&w0);
+#endif
+#ifdef PROFILING_ADD_SUB
+  asm("csrrs s3, time, zero");
+  print_runtime(cycle_start, cycle_end);
+#endif
+
   if(polyveck_chknorm(&w0, GAMMA2 - BETA))
     goto rej;
 
   /* Compute hints for w1 */
   polyveck_pointwise_poly_montgomery(&h, &cp, &t0);
   polyveck_invntt_tomont(&h);
+
+#ifndef FPAU
   polyveck_reduce(&h);
+#endif
+
+#ifdef SIGNATURE_TESTING_HW
+  uart_send_string("\n\rh3\n");
+  for (uint16_t i = 0; i < N*K; i++)
+  {
+    itoa(pbuf, h_ptr[i], 10);
+    uart_send_string("\r");
+    uart_send_string(str);
+  }
+#endif
+
   if(polyveck_chknorm(&h, GAMMA2))
     goto rej;
 

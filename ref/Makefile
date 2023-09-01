@@ -1,10 +1,28 @@
-CC ?= /usr/bin/cc
-CFLAGS += -Wall -Wextra -Wpedantic -Wmissing-prototypes -Wredundant-decls \
-  -Wshadow -Wvla -Wpointer-arith -O3 -fomit-frame-pointer
+ifdef ORCA
+ORCA_ROOT ?= ../../orca
+RISCV_TESTS_DIR ?= $(ORCA_ROOT)/software/riscv-tests
+RISCV_ENV_DIR   ?= $(RISCV_TESTS_DIR)/env
+
+#Include software from orca_lib
+ORCA_LIB ?= $(ORCA_ROOT)/software/orca_lib
+SOURCES += full-crt.s $(ORCA_LIB)/orca_exceptions.c
+INC_DIRS = -I$(ORCA_ROOT)/systems/zedboard -I$(RISCV_ENV_DIR) -I$(ORCA_LIB)
+
+OBJCOPY = /opt/riscv/bin/riscv32-unknown-elf-objcopy
+endif #ORCA
+
+CC=/opt/riscv/bin/riscv32-unknown-elf-gcc
+
+ifdef ORCA
+CFLAGS += -march=rv32im -mno-explicit-relocs -g -MD -Wall -std=gnu99 -Wmisleading-indentation -static -nostartfiles -Xlinker -Map=output.map -T link.ld $(INC_DIRS) -O3
+else
+CFLAGS += -march=rv32i_zicsr_zifencei -mabi=ilp32 -MD -Wall -std=gnu99 -Ttext 0x00000000 -mno-explicit-relocs -O3 #STEEL
+endif
+
 NISTFLAGS += -Wno-unused-result -O3 -fomit-frame-pointer
-SOURCES = sign.c packing.c polyvec.c poly.c ntt.c reduce.c rounding.c
+SOURCES += sign.c packing.c polyvec.c poly.c ntt.c reduce.c rounding.c uart.c
 HEADERS = config.h params.h api.h sign.h packing.h polyvec.h poly.h ntt.h \
-  reduce.h rounding.h symmetric.h randombytes.h
+  reduce.h rounding.h symmetric.h randombytes.h uart.h fpau_switches.h
 KECCAK_SOURCES = $(SOURCES) fips202.c symmetric-shake.c
 KECCAK_HEADERS = $(HEADERS) fips202.h
 AES_SOURCES = $(SOURCES) fips202.c aes256ctr.c symmetric-aes.c
@@ -85,16 +103,28 @@ test/test_dilithium2: test/test_dilithium.c randombytes.c $(KECCAK_SOURCES) \
   $(KECCAK_HEADERS)
 	$(CC) $(CFLAGS) -DDILITHIUM_MODE=2 \
 	  -o $@ $< randombytes.c $(KECCAK_SOURCES)
+test/test_dilithium2.ihex: test/test_dilithium2
+	$(OBJCOPY) -O ihex $< $@
+test/test_dilithium2.coe: test/test_dilithium2
+	python $(ORCA_ROOT)/tools/hex2coe.py $<.hex -o $@
 
 test/test_dilithium3: test/test_dilithium.c randombytes.c $(KECCAK_SOURCES) \
   $(KECCAK_HEADERS)
 	$(CC) $(CFLAGS) -DDILITHIUM_MODE=3 \
 	  -o $@ $< randombytes.c $(KECCAK_SOURCES)
+test/test_dilithium3.ihex: test/test_dilithium3
+	$(OBJCOPY) -O ihex $< $@
+test/test_dilithium3.coe: test/test_dilithium3
+	python $(ORCA_ROOT)/tools/hex2coe.py $<.hex -o $@
 
 test/test_dilithium5: test/test_dilithium.c randombytes.c $(KECCAK_SOURCES) \
   $(KECCAK_HEADERS)
 	$(CC) $(CFLAGS) -DDILITHIUM_MODE=5 \
 	  -o $@ $< randombytes.c $(KECCAK_SOURCES)
+test/test_dilithium5.ihex: test/test_dilithium5
+	$(OBJCOPY) -O ihex $< $@
+test/test_dilithium5.coe: test/test_dilithium5
+	python $(ORCA_ROOT)/tools/hex2coe.py $<.hex -o $@
 
 test/test_dilithium2aes: test/test_dilithium.c randombytes.c $(AES_SOURCES) \
   $(AES_HEADERS)
