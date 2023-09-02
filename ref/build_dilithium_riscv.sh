@@ -25,7 +25,7 @@ do
     esac
 done
 
-if [[ $TEST == "test_dilithium2" ]] || [[ $TEST == "test_dilithium3" ]] 
+if [[ $TEST == "test_dilithium2" ]] || [[ $TEST == "test_dilithium3" ]] || [[ $TEST == "test_dilithium5" ]]
 then
 if [[ $CORE == "orca" ]]
 then
