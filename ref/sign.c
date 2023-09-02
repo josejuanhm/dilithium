@@ -203,11 +203,11 @@ rej:
   /* Compute z, reject if it reveals secret */
 #ifdef PROFILING_MAC
   uart_send_string("\n\rPointwise mult l vector");
-  asm("csrrs s2, time, zero");
+  asm("csrrs s2, "TICKS_REGISTER", zero");
 #endif
   polyvecl_pointwise_poly_montgomery(&z, &cp, &s1);
 #ifdef PROFILING_MAC
-  asm("csrrs s3, time, zero");
+  asm("csrrs s3, "TICKS_REGISTER", zero");
   print_runtime(cycle_start, cycle_end);
 #endif
 
@@ -215,14 +215,14 @@ rej:
 
 #ifdef PROFILING_ADD_SUB
   uart_send_string("\n\rADD polyvecl_add");
-  asm("csrrs s2, time, zero");
+  asm("csrrs s2, "TICKS_REGISTER", zero");
 #endif
   polyvecl_add(&z, &z, &y);
 #ifndef FPAU
   polyvecl_reduce(&z);
 #endif
 #ifdef PROFILING_ADD_SUB
-  asm("csrrs s3, time, zero");
+  asm("csrrs s3, "TICKS_REGISTER", zero");
   print_runtime(cycle_start, cycle_end);
 #endif
 
@@ -234,11 +234,11 @@ rej:
 
 #ifdef PROFILING_MAC
   uart_send_string("\n\rPointwise mult k vector");
-  asm("csrrs s2, time, zero");
+  asm("csrrs s2, "TICKS_REGISTER", zero");
 #endif
   polyveck_pointwise_poly_montgomery(&h, &cp, &s2);
 #ifdef PROFILING_MAC
-  asm("csrrs s3, time, zero");
+  asm("csrrs s3, "TICKS_REGISTER", zero");
   print_runtime(cycle_start, cycle_end);
 #endif
 
@@ -246,14 +246,14 @@ rej:
 
 #ifdef PROFILING_ADD_SUB
   uart_send_string("\n\rSUB polyveck_sub");
-  asm("csrrs s2, time, zero");
+  asm("csrrs s2, "TICKS_REGISTER", zero");
 #endif
   polyveck_sub(&w0, &w0, &h);
 #ifndef FPAU
   polyveck_reduce(&w0);
 #endif
 #ifdef PROFILING_ADD_SUB
-  asm("csrrs s3, time, zero");
+  asm("csrrs s3, "TICKS_REGISTER", zero");
   print_runtime(cycle_start, cycle_end);
 #endif
 

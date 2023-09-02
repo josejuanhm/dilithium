@@ -10,7 +10,6 @@
 
 #ifdef PROFILING_NTT_INTT
 #include "uart.h"
-void print_runtime2(uint32_t cycle_start, uint32_t cycle_end);
 #endif
 
 #ifdef DBENCH
@@ -178,15 +177,15 @@ void poly_ntt(poly *a) {
 
   uart_send_string("\n\rNTT:");
 
-  asm("csrrs s2, time, zero");
+  asm("csrrs s2, "TICKS_REGISTER", zero");
   #endif
 
   ntt(a->coeffs);
 
   #ifdef PROFILING_NTT_INTT
-  asm("csrrs s3, time, zero");
+  asm("csrrs s3, "TICKS_REGISTER", zero");
 
-  print_runtime2(cycle_start, cycle_end);
+  print_runtime(cycle_start, cycle_end);
   #endif
 
   DBENCH_STOP(*tmul);
@@ -209,15 +208,15 @@ void poly_invntt_tomont(poly *a) {
 
   uart_send_string("\n\rInverse NTT:");
 
-  asm("csrrs s2, time, zero");
+  asm("csrrs s2, "TICKS_REGISTER", zero");
   #endif
 
   invntt_tomont(a->coeffs);
 
   #ifdef PROFILING_NTT_INTT
-  asm("csrrs s3, time, zero");
+  asm("csrrs s3, "TICKS_REGISTER", zero");
 
-  print_runtime2(cycle_start, cycle_end);
+  print_runtime(cycle_start, cycle_end);
   #endif
 
   DBENCH_STOP(*tmul);
@@ -984,28 +983,3 @@ void polyw1_pack(uint8_t *r, const poly *a) {
 
   DBENCH_STOP(*tpack);
 }
-
-#ifdef PROFILING_NTT_INTT
-void print_runtime2(uint32_t cycle_start, uint32_t cycle_end)
-{
-  uint32_t clock_cycles = cycle_end - cycle_start;
-
-  itoa(pbuf, cycle_start, 10);
-  uart_send_string("\nStart cycle: ");
-  uart_send_string(str);
-  uart_send_string("\n");
-  //itoa(pbuf, cycle_starth, 10);
-  //uart_send_string(str);
-  itoa(pbuf, cycle_end, 10);
-  uart_send_string("\nEnd cycle: ");
-  uart_send_string(str);
-  uart_send_string("\n");
-  //itoa(pbuf, cycle_endh, 10);
-  //uart_send_string(str);
-
-  itoa(pbuf, clock_cycles, 10);
-  uart_send_string("\nTotal clock cycles: ");
-  uart_send_string(str);
-  uart_send_string("\n");
-}
-#endif

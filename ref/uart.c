@@ -3,9 +3,6 @@
 char str[21] = {0};
 char* pbuf = &str[0];
 
-char str2[21] = {0};
-char* pbuf2 = &str2[0];
-
 void itoa(char *buf, unsigned int d, int base)
 {
 	int div = 1;

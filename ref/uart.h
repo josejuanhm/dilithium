@@ -7,9 +7,6 @@
 extern char str[21];
 extern char* pbuf;
 
-extern char str2[21];
-extern char* pbuf2;
-
 void itoa(char *buf, unsigned int d, int base);
 void print_runtime(unsigned int cycle_start, unsigned int cycle_end);
 

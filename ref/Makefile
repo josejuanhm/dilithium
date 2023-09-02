@@ -14,9 +14,9 @@ endif #ORCA
 CC=/opt/riscv/bin/riscv32-unknown-elf-gcc
 
 ifdef ORCA
-CFLAGS += -march=rv32im -mno-explicit-relocs -g -MD -Wall -std=gnu99 -Wmisleading-indentation -static -nostartfiles -Xlinker -Map=output.map -T link.ld $(INC_DIRS) -O3
+CFLAGS += -march=rv32im -mno-explicit-relocs -g -MD -Wall -std=gnu99 -Wmisleading-indentation -static -nostartfiles -Xlinker -T link.ld $(INC_DIRS) -O3
 else
-CFLAGS += -march=rv32i_zicsr_zifencei -mabi=ilp32 -MD -Wall -std=gnu99 -Ttext 0x00000000 -mno-explicit-relocs -O3 #STEEL
+CFLAGS += -march=rv32i_zicsr_zifencei -mabi=ilp32 -g -MD -Wall -std=gnu99 -Ttext 0x00000000 -mno-explicit-relocs -O3 -D STEEL
 endif
 
 NISTFLAGS += -Wno-unused-result -O3 -fomit-frame-pointer

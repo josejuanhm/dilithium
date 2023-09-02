@@ -39,11 +39,11 @@ void polyvec_matrix_pointwise_montgomery(polyveck *t, const polyvecl mat[K], con
   for(i = 0; i < K; ++i){
 #ifdef PROFILING_MAC
     uart_send_string("\n\rMAC l vector");
-    asm("csrrs s4, time, zero");
+    asm("csrrs s4, "TICKS_REGISTER", zero");
 #endif
     polyvecl_pointwise_acc_montgomery(&t->vec[i], &mat[i], v);
 #ifdef PROFILING_MAC
-    asm("csrrs s3, time, zero");
+    asm("csrrs s3, "TICKS_REGISTER", zero");
     print_runtime(cycle_start, cycle_end);
 #endif
   }

@@ -8,7 +8,7 @@
 #include "../fpau_switches.h"
 
 #define MLEN 59
-#define NTESTS 100
+#define NTESTS 10000
 
 #ifdef UART
 #include "../uart.h"
@@ -17,9 +17,10 @@
 #ifdef RISCV_PROCESSOR
 int main(void)
 {
-  size_t i;
+  size_t i, j;
   int ret;
   size_t mlen, smlen;
+  uint8_t b;
   uint8_t m[MLEN + CRYPTO_BYTES];
   uint8_t m2[MLEN + CRYPTO_BYTES];
   uint8_t sm[MLEN + CRYPTO_BYTES];
@@ -50,11 +51,11 @@ int main(void)
     randombytes(m, MLEN);
     
 #ifdef PROFILING_STAGES
-    asm("csrrs s2, time, zero");
+    asm("csrrs s2, "TICKS_REGISTER", zero");
 #endif
     crypto_sign_keypair(pk, sk);
 #ifdef PROFILING_STAGES
-    asm("csrrs s3, time, zero");
+    asm("csrrs s3, "TICKS_REGISTER", zero");
     print_runtime(cycle_start, cycle_end);
     keys_avg = ((cycle_end - cycle_start) + i*keys_avg) / (i+1); // obtaining average per new sample
 #endif
@@ -63,11 +64,11 @@ int main(void)
     uart_send_string("\nSign message");
 #endif
 #ifdef PROFILING_STAGES
-    asm("csrrs s4, time, zero");
+    asm("csrrs s4, "TICKS_REGISTER", zero");
 #endif
     crypto_sign(sm, &smlen, m, MLEN, sk);
 #ifdef PROFILING_STAGES
-    asm("csrrs s5, time, zero");
+    asm("csrrs s5, "TICKS_REGISTER", zero");
     print_runtime(cycle_start2, cycle_end2);
     sign_avg = ((cycle_end2 - cycle_start2) + i*sign_avg) / (i+1); 
 #endif
@@ -76,11 +77,11 @@ int main(void)
     uart_send_string("\nVerify signature");
 #endif
 #ifdef PROFILING_STAGES
-    asm("csrrs s6, time, zero");
+    asm("csrrs s6, "TICKS_REGISTER", zero");
 #endif
     ret = crypto_sign_open(m2, &mlen, sm, smlen, pk);
 #ifdef PROFILING_STAGES
-    asm("csrrs s7, time, zero");
+    asm("csrrs s7, "TICKS_REGISTER", zero");
     print_runtime(cycle_start3, cycle_end3);
     verify_avg = ((cycle_end3 - cycle_start3) + i*verify_avg) / (i+1); 
 #endif
@@ -92,33 +93,34 @@ int main(void)
 #endif
       return -1;
     }
-    //if(smlen != MLEN + CRYPTO_BYTES) {
-    //  //fprintf(stderr, "Signed message lengths wrong\n");
-    //  uart_send_string("\n\rSigned message lengths wrong");
-    //  return -1;
-    //}
-    //if(mlen != MLEN) {
-    //  //fprintf(stderr, "Message lengths wrong\n");
-    //  uart_send_string("\n\rMessage lengths wrong");
-    //  return -1;
-    //}
-    //for(j = 0; j < MLEN; ++j) {
-    //  if(m2[j] != m[j]) {
-    //    //fprintf(stderr, "Messages don't match\n");
-    //    uart_send_string("\n\rMessages don't match");
-    //    return -1;
-    //  }
-    //}
-    //randombytes((uint8_t *)&j, sizeof(j));
-    //do {
-    //  randombytes(&b, 1);
-    //} while(!b);
-    //sm[j % (MLEN + CRYPTO_BYTES)] += b;
-    //ret = crypto_sign_open(m2, &mlen, sm, smlen, pk);
-    //if(!ret) {
-    //  fprintf(stderr, "Trivial forgeries possible\n");
-    //  return -1;
-    //}
+    if(smlen != MLEN + CRYPTO_BYTES) {
+      //fprintf(stderr, "Signed message lengths wrong\n");
+      uart_send_string("\n\rSigned message lengths wrong");
+      return -1;
+    }
+    if(mlen != MLEN) {
+      //fprintf(stderr, "Message lengths wrong\n");
+      uart_send_string("\n\rMessage lengths wrong");
+      return -1;
+    }
+    for(j = 0; j < MLEN; ++j) {
+      if(m2[j] != m[j]) {
+        //fprintf(stderr, "Messages don't match\n");
+        uart_send_string("\n\rMessages don't match");
+        return -1;
+      }
+    }
+    randombytes((uint8_t *)&j, sizeof(j));
+    do {
+      randombytes(&b, 1);
+    } while(!b);
+    sm[j % (MLEN + CRYPTO_BYTES)] += b;
+    ret = crypto_sign_open(m2, &mlen, sm, smlen, pk);
+    if(!ret) {
+      //fprintf(stderr, "Trivial forgeries possible\n");
+      uart_send_string("Trivial forgeries possible\n");
+      return -1;
+    }
   }
 
   //printf("CRYPTO_PUBLICKEYBYTES = %d\n", CRYPTO_PUBLICKEYBYTES);
