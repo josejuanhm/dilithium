@@ -36,14 +36,16 @@ then
   sudo make test/$TEST.ihex ORCA=1 # used for hw implementation
   sudo make test/$TEST.coe ORCA=1  # used for simulation
   sudo /opt/riscv/bin/riscv32-unknown-elf-objdump -d -S $CWD/test/$TEST > $CWD/test/generated_asm_$TEST.txt
+  sed -i 's/^\/\/`define MULTIPLE_CYCLES/`define MULTIPLE_CYCLES/' ../../../rtl/fpau_top.sv
 elif [[ $CORE == "steel" ]]
 then
   echo "Building $TEST for the STEEL core."
   sudo make clean
   sudo make test/$TEST
   sudo ./elf2hex.sh test/$TEST
-  sudo cp test/$TEST.hex ../../steel_new_fpau/riscv-steel-core/hello_world/hello_world.mem
+  sudo cp test/$TEST.hex ../../../riscv_cores/riscv-steel-core/hello_world/program.mem
   sudo /opt/riscv/bin/riscv32-unknown-elf-objdump -d -S $CWD/test/$TEST > $CWD/test/generated_asm_$TEST.txt
+  sed -i 's/^`define MULTIPLE_CYCLES/\/\/`define MULTIPLE_CYCLES/' ../../../rtl/fpau_top.sv
 else
   echo "Invalid core option. Call with -h for help"
 fi
