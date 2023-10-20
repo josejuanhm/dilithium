@@ -1,3 +1,10 @@
+///////////////////////////////////////////////////////////////////////////////////////
+// October 19, 2023 - Modified by José Juan Hernández-Morales
+//   Adding testing and execution time profiling instructions for RISC-V instruction 
+//   set extension. 
+//   Repository: https://github.com/josejuanhm/fpau
+///////////////////////////////////////////////////////////////////////////////////////
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
